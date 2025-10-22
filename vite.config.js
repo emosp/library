@@ -2,7 +2,7 @@
  * @Author: flkGit
  * @Date: 2025-10-22 10:15:13
  * @LastEditors: flkGit
- * @LastEditTime: 2025-10-22 16:24:18
+ * @LastEditTime: 2025-10-22 16:44:42
  * @FilePath: /emos_library/vite.config.js
  * @Description:
  *
@@ -35,7 +35,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 4396,
+    port: 5173,
   },
   build: {
     rollupOptions: {
