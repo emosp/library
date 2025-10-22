@@ -11,9 +11,57 @@ const request = axios.create({
   }
 })
 
+// 存储正在进行的请求
+const pendingRequests = new Map()
+
+/**
+ * 生成请求的唯一标识
+ * @param {Object} config - axios 请求配置
+ * @returns {string} 请求的唯一标识
+ */
+const generateRequestKey = (config) => {
+  const { method, url, params, data } = config
+  return [method, url, JSON.stringify(params), JSON.stringify(data)].join('&')
+}
+
+/**
+ * 添加请求到 pending 中
+ * @param {Object} config - axios 请求配置
+ */
+const addPendingRequest = (config) => {
+  const requestKey = generateRequestKey(config)
+
+  if (pendingRequests.has(requestKey)) {
+    // 如果已存在相同请求，取消当前请求
+    config.cancelToken = new axios.CancelToken((cancel) => {
+      cancel(`重复请求: ${requestKey}`)
+    })
+  } else {
+    // 添加到 pending 请求中
+    config.cancelToken = new axios.CancelToken((cancel) => {
+      pendingRequests.set(requestKey, cancel)
+    })
+  }
+}
+
+/**
+ * 从 pending 中移除请求
+ * @param {Object} config - axios 请求配置
+ */
+const removePendingRequest = (config) => {
+  const requestKey = generateRequestKey(config)
+
+  if (pendingRequests.has(requestKey)) {
+    pendingRequests.delete(requestKey)
+  }
+}
+
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
+    // 添加请求拦截,避免重复请求
+    addPendingRequest(config)
+
     // 从 sessionStorage 获取 token
     const token = sessionStorage.getItem('token')
     if (token) {
@@ -30,6 +78,9 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    // 请求完成,从 pending 中移除
+    removePendingRequest(response.config)
+
     const res = response.data
 
     // 根据业务需求处理响应
@@ -49,6 +100,17 @@ request.interceptors.response.use(
     return res
   },
   (error) => {
+    // 请求失败,从 pending 中移除
+    if (error.config) {
+      removePendingRequest(error.config)
+    }
+
+    // 如果是取消请求的错误,不显示错误提示
+    if (axios.isCancel(error)) {
+      console.log('请求已取消:', error.message)
+      return Promise.reject(error)
+    }
+
     console.error('响应错误:', error)
 
     if (error.response) {

@@ -53,10 +53,14 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="是否删除">
+        <el-form-item label="是否包含已删除视频" label-width="160">
           <el-select v-model="queryForm.withDelete" placeholder="请选择" style="width: 150px">
-            <el-option label="否" :value="0" />
-            <el-option label="是" :value="1" />
+            <el-option
+              v-for="item in WITH_DELETE_OPTIONS"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
 
@@ -115,7 +119,13 @@
             </el-tag>
           </template>
         </el-table-column>
-
+        <el-table-column label="状态" prop="is_delete" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag :type="getDeleteStatusTagType(row.is_delete)">
+              {{ getDeleteStatusName(row.is_delete) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="video_date_air" label="上映时间" width="120" align="center" />
 
         <el-table-column prop="tmdb_id" label="TMDB ID" width="100" align="center" />
@@ -124,7 +134,9 @@
           prop="video_description"
           label="简介"
           min-width="250"
-          show-overflow-tooltip
+          :show-overflow-tooltip="{
+            popperClass: 'description-tooltip',
+          }"
         />
 
         <el-table-column label="操作" width="280" fixed="right" align="center">
@@ -137,9 +149,19 @@
               <el-icon><Picture /></el-icon>
               修改封面
             </el-button>
-            <el-button type="danger" size="small" link @click="handleDelete(row)">
+            <el-button
+              v-if="!row.is_delete"
+              type="danger"
+              size="small"
+              link
+              @click="handleDelete(row)"
+            >
               <el-icon><Delete /></el-icon>
               删除
+            </el-button>
+            <el-button v-else type="success" size="small" link @click="handleRecover(row)">
+              <el-icon><RefreshLeft /></el-icon>
+              恢复
             </el-button>
           </template>
         </el-table-column>
@@ -158,24 +180,48 @@
         />
       </div>
     </el-card>
+
+    <!-- 修改媒体库对话框 -->
+    <ChangeLibraryDialog
+      v-model="changeLibraryDialogVisible"
+      :video-info="changeLibraryVideoInfo"
+      :library-list="libraryList"
+      @submit="handleChangeLibrarySubmit"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, h } from 'vue'
+import { ref, reactive, onMounted, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, RefreshLeft, Delete, SwitchButton, Folder, Picture } from '@element-plus/icons-vue'
-import { VIDEO_TYPE_OPTIONS, SEARCH_TYPE_OPTIONS, SEARCH_TYPE } from '@/constants'
+import {
+  VIDEO_TYPE_OPTIONS,
+  SEARCH_TYPE_OPTIONS,
+  SEARCH_TYPE,
+  VIDEO_TYPE_LABEL,
+  VIDEO_TYPE_TAG,
+  WITH_DELETE,
+  WITH_DELETE_OPTIONS,
+  SEARCH_TYPE_PLACEHOLDER,
+  DELETE_STATUS_LABEL,
+  DELETE_STATUS_TAG,
+} from '@/constants'
 import {
   getVideoList,
   deleteVideo,
+  recoverVideo,
   changeVideoLibrary,
   changeLibraryImage,
   getLibraryList,
 } from '@/api/video'
 
+// 异步加载 Dialog 组件
+const ChangeLibraryDialog = defineAsyncComponent(() => import('./ChangeLibraryDialog.vue'))
+
 const router = useRouter()
 const loading = ref(false)
+const loadingCount = ref(0) // 请求计数器
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -186,62 +232,54 @@ const username = ref(sessionStorage.getItem('username') || '未知用户')
 // 媒体库列表
 const libraryList = ref([])
 
+// 修改媒体库 Dialog
+const changeLibraryDialogVisible = ref(false)
+const changeLibraryVideoInfo = ref({
+  videoId: '',
+  videoTitle: '',
+  currentLibraryId: '',
+  currentLibraryName: '',
+})
+
 // 查询表单
 const queryForm = reactive({
   library: '', // 对应 library_id
   type: '', // 对应 type
   searchType: SEARCH_TYPE.NAME, // 搜索类型：id, name, tmdbId
   searchValue: '', // 搜索值
-  withDelete: 0, // 是否包含已删除的视频，0:否 1:是
+  withDelete: WITH_DELETE.NO, // 是否包含已删除的视频，0:否 1:是
 })
 
 // 计算搜索框的占位符
 const searchPlaceholder = computed(() => {
-  const placeholders = {
-    [SEARCH_TYPE.ID]: '请输入视频ID',
-    [SEARCH_TYPE.NAME]: '请输入视频名称',
-    [SEARCH_TYPE.TMDB_ID]: '请输入TMDB ID',
-  }
-  return placeholders[queryForm.searchType] || '请输入搜索内容'
+  return SEARCH_TYPE_PLACEHOLDER[queryForm.searchType] || '请输入搜索内容'
 })
 
 const tableData = ref([])
 
-// 获取媒体库名称
-const getLibraryName = (library) => {
-  const map = {
-    movies: '电影库',
-    tvshows: '电视剧库',
-    documentaries: '纪录片库',
-    anime: '动漫库',
-  }
-  return map[library] || library
-}
-
 // 获取类型名称
 const getTypeName = (type) => {
-  const map = {
-    movie: '电影',
-    series: '剧集',
-    documentary: '纪录片',
-    anime: '动漫',
-  }
-  return map[type] || type
+  return VIDEO_TYPE_LABEL[type] || type
 }
 
 // 获取类型标签类型
 const getTypeTagType = (type) => {
-  const map = {
-    movie: '',
-    series: 'success',
-    documentary: 'warning',
-    anime: 'danger',
-  }
-  return map[type] || ''
+  return VIDEO_TYPE_TAG[type] || 'info'
+}
+
+// 获取删除状态名称
+const getDeleteStatusName = (isDelete) => {
+  return DELETE_STATUS_LABEL[isDelete] || '未知'
+}
+
+// 获取删除状态标签类型
+const getDeleteStatusTagType = (isDelete) => {
+  return DELETE_STATUS_TAG[isDelete] || 'info'
 }
 
 // 查询数据
 const handleQuery = async () => {
+  loadingCount.value++
   loading.value = true
 
   try {
@@ -286,8 +324,20 @@ const handleQuery = async () => {
       total.value = response.total || 0
       ElMessage.success('查询成功')
     }
+  } catch (error) {
+    // 如果是取消请求的错误,不处理
+    if (error && error.message && error.message.includes('重复请求')) {
+      return
+    }
+    console.error('查询失败:', error)
+    ElMessage.error(error.message || '查询失败')
   } finally {
-    loading.value = false
+    loadingCount.value--
+    // 只有当所有请求都完成时才关闭 loading
+    if (loadingCount.value <= 0) {
+      loadingCount.value = 0
+      loading.value = false
+    }
   }
 }
 
@@ -297,71 +347,34 @@ const handleReset = () => {
   queryForm.type = ''
   queryForm.searchType = SEARCH_TYPE.NAME
   queryForm.searchValue = ''
-  queryForm.withDelete = 0
+  queryForm.withDelete = WITH_DELETE.NO
   handleQuery()
 }
 
 // 修改媒体库
-const handleChangeLibrary = async (row) => {
-  // 使用已获取的媒体库列表
-  const libraries = libraryList.value
-
-  if (!libraries || libraries.length === 0) {
-    ElMessage.warning('媒体库列表为空,请刷新页面重试')
-    return
+const handleChangeLibrary = (row) => {
+  // 设置视频信息
+  changeLibraryVideoInfo.value = {
+    videoId: row.video_id,
+    videoTitle: row.video_title,
+    currentLibraryId: row.library_id,
+    currentLibraryName: row.library_name,
   }
 
-  // 构建选项列表
-  const options = libraries.map((lib) => ({
-    label: lib.name || getLibraryName(lib.id),
-    value: lib.id,
-  }))
+  // 打开对话框
+  changeLibraryDialogVisible.value = true
+}
 
-  // 使用 ElMessageBox.prompt 让用户选择
-  ElMessageBox({
-    title: '修改媒体库',
-    message: h('div', null, [
-      h('p', null, `当前视频: ${row.video_title}`),
-      h('p', { style: 'margin-top: 10px' }, '请选择新的媒体库:'),
-      h(
-        'el-select',
-        {
-          modelValue: row.library_id,
-          placeholder: '请选择媒体库',
-          style: 'width: 100%; margin-top: 10px',
-          onChange: (val) => {
-            row.library_id = val
-          },
-        },
-        () => options.map((opt) => h('el-option', { label: opt.label, value: opt.value })),
-      ),
-    ]),
-    showCancelButton: true,
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    beforeClose: async (action, instance, done) => {
-      if (action === 'confirm') {
-        if (!row.library_id) {
-          ElMessage.warning('请选择媒体库')
-          return
-        }
-        try {
-          instance.confirmButtonLoading = true
-          await changeVideoLibrary(row.video_id, row.library_id)
-          ElMessage.success('修改成功')
-          handleQuery()
-          done()
-        } catch (error) {
-          console.error('修改失败:', error)
-          ElMessage.error(error.message || '修改失败')
-        } finally {
-          instance.confirmButtonLoading = false
-        }
-      } else {
-        done()
-      }
-    },
-  })
+// 提交修改媒体库
+const handleChangeLibrarySubmit = async (data) => {
+  try {
+    await changeVideoLibrary(data.videoId, data.libraryId)
+    ElMessage.success('修改成功')
+    handleQuery()
+  } catch (error) {
+    console.error('修改失败:', error)
+    ElMessage.error(error.message || '修改失败')
+  }
 }
 
 // 修改封面
@@ -413,6 +426,28 @@ const handleDelete = async (row) => {
     })
 }
 
+// 恢复删除
+const handleRecover = async (row) => {
+  ElMessageBox.confirm(`确定要恢复 "${row.video_title}" 吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'info',
+  })
+    .then(async () => {
+      try {
+        await recoverVideo(row.video_id)
+        ElMessage.success('恢复成功')
+        handleQuery()
+      } catch (error) {
+        console.error('恢复失败:', error)
+        ElMessage.error(error.message || '恢复失败')
+      }
+    })
+    .catch(() => {
+      ElMessage.info('已取消恢复')
+    })
+}
+
 // 分页
 const handleSizeChange = (val) => {
   pageSize.value = val
@@ -444,9 +479,27 @@ const handleLogout = () => {
 
 // 获取媒体库列表
 const fetchLibraryList = async () => {
-  const response = await getLibraryList()
+  loadingCount.value++
+  loading.value = true
 
-  libraryList.value = response || []
+  try {
+    const response = await getLibraryList()
+    libraryList.value = response || []
+  } catch (error) {
+    // 如果是取消请求的错误,不处理
+    if (error && error.message && error.message.includes('重复请求')) {
+      return
+    }
+    console.error('获取媒体库列表失败:', error)
+    ElMessage.error('获取媒体库列表失败')
+  } finally {
+    loadingCount.value--
+    // 只有当所有请求都完成时才关闭 loading
+    if (loadingCount.value <= 0) {
+      loadingCount.value = 0
+      loading.value = false
+    }
+  }
 }
 
 // 组件挂载时加载数据
@@ -458,7 +511,7 @@ onMounted(async () => {
     return
   }
 
-  // 获取媒体库列表
+  // 先获取媒体库列表,再加载视频列表
   await fetchLibraryList()
 
   // 加载视频列表
@@ -543,5 +596,15 @@ onMounted(async () => {
 
 :deep(.el-form-item) {
   margin-bottom: 20px;
+}
+</style>
+
+<style>
+/* 简介 tooltip 样式 - 需要使用全局样式 */
+.description-tooltip {
+  max-width: 400px;
+  word-wrap: break-word;
+  word-break: break-all;
+  white-space: normal;
 }
 </style>
