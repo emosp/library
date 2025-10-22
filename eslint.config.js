@@ -16,6 +16,11 @@ export default defineConfig([
     languageOptions: {
       globals: {
         ...globals.browser,
+        // Element Plus 自动导入的全局变量
+        ElMessage: 'readonly',
+        ElMessageBox: 'readonly',
+        ElNotification: 'readonly',
+        ElLoading: 'readonly',
       },
     },
   },
