@@ -1,3 +1,13 @@
+/*
+ * @Author: flkGit
+ * @Date: 2025-10-22 15:01:02
+ * @LastEditors: flkGit
+ * @LastEditTime: 2025-10-22 15:59:29
+ * @FilePath: /emos_library/src/api/video.js
+ * @Description:
+ *
+ * Copyright (c) 2025 by flkGit, All Rights Reserved.
+ */
 import request from '@/utils/request'
 
 /**
@@ -9,7 +19,7 @@ export const getVideoList = (params) => {
   return request({
     url: '/api/video/list',
     method: 'get',
-    params
+    params,
   })
 }
 
@@ -17,7 +27,7 @@ export const getVideoList = (params) => {
 export const getVideoDetail = (id) => {
   return request({
     url: `/api/videos/${id}`,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -26,7 +36,7 @@ export const updateVideo = (id, data) => {
   return request({
     url: `/api/videos/${id}`,
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -34,7 +44,7 @@ export const updateVideo = (id, data) => {
 export const deleteVideo = (videoId) => {
   return request({
     url: `/api/video/${videoId}/delete`,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -42,7 +52,7 @@ export const deleteVideo = (videoId) => {
 export const recoverVideo = (videoId) => {
   return request({
     url: `/api/video/${videoId}/recover`,
-    method: 'patch'
+    method: 'patch',
   })
 }
 
@@ -52,8 +62,8 @@ export const changeVideoLibrary = (videoId, libraryId) => {
     url: `/api/video/${videoId}/changeLibraryId`,
     method: 'put',
     params: {
-      library_id: libraryId
-    }
+      library_id: libraryId,
+    },
   })
 }
 
@@ -61,15 +71,18 @@ export const changeVideoLibrary = (videoId, libraryId) => {
 export const getLibraryList = () => {
   return request({
     url: '/api/library/base',
-    method: 'get'
+    method: 'get',
   })
 }
 
 // 修改媒体库封面
-export const changeLibraryImage = (data) => {
+export const changeLibraryImage = (libraryId, fileId) => {
   return request({
     url: '/api/library/changeImage',
     method: 'put',
-    data
+    data: {
+      library_id: libraryId,
+      file_id: fileId,
+    },
   })
 }

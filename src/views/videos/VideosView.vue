@@ -5,7 +5,10 @@
         <div class="card-header">
           <img src="@/assets/icon.svg" alt="视频管理图标" class="header-icon" />
           <span class="title">视频资源管理</span>
-
+          <el-button type="primary" @click="handleChangeLibraryImage">
+            <el-icon><Picture /></el-icon>
+            修改媒体库封面
+          </el-button>
           <!-- 用户信息区域 -->
           <div class="user-info">
             <img src="@/assets/avatar.png" alt="用户头像" class="user-avatar" />
@@ -145,10 +148,6 @@
               <el-icon><Folder /></el-icon>
               修改媒体库
             </el-button>
-            <el-button type="warning" size="small" link @click="handleChangeImage(row)">
-              <el-icon><Picture /></el-icon>
-              修改封面
-            </el-button>
             <el-button
               v-if="!row.is_delete"
               type="danger"
@@ -188,6 +187,13 @@
       :library-list="libraryList"
       @submit="handleChangeLibrarySubmit"
     />
+
+    <!-- 修改媒体库封面对话框 -->
+    <ChangeImageDialog
+      v-model="changeImageDialogVisible"
+      :library-list="libraryList"
+      @submit="handleChangeImageSubmit"
+    />
   </div>
 </template>
 
@@ -214,10 +220,11 @@ import {
   changeVideoLibrary,
   changeLibraryImage,
   getLibraryList,
-} from '@/api/video'
+} from '@/api'
 
 // 异步加载 Dialog 组件
 const ChangeLibraryDialog = defineAsyncComponent(() => import('./ChangeLibraryDialog.vue'))
+const ChangeImageDialog = defineAsyncComponent(() => import('./ChangeImageDialog.vue'))
 
 const router = useRouter()
 const loading = ref(false)
@@ -240,6 +247,9 @@ const changeLibraryVideoInfo = ref({
   currentLibraryId: '',
   currentLibraryName: '',
 })
+
+// 修改封面 Dialog
+const changeImageDialogVisible = ref(false)
 
 // 查询表单
 const queryForm = reactive({
@@ -377,31 +387,24 @@ const handleChangeLibrarySubmit = async (data) => {
   }
 }
 
-// 修改封面
-const handleChangeImage = async (row) => {
-  ElMessageBox.prompt('请输入新的封面图片URL', '修改封面', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    inputPlaceholder: '请输入图片URL',
-    inputPattern: /^https?:\/\/.+/,
-    inputErrorMessage: '请输入有效的URL地址',
-  })
-    .then(async ({ value }) => {
-      try {
-        await changeLibraryImage({
-          video_id: row.video_id,
-          image_url: value,
-        })
-        ElMessage.success('修改成功')
-        handleQuery()
-      } catch (error) {
-        console.error('修改失败:', error)
-        ElMessage.error(error.message || '修改失败')
-      }
-    })
-    .catch(() => {
-      ElMessage.info('已取消')
-    })
+// 修改媒体库封面
+const handleChangeLibraryImage = () => {
+  // 打开对话框
+  changeImageDialogVisible.value = true
+}
+
+// 提交修改媒体库封面
+const handleChangeImageSubmit = async (data) => {
+  try {
+    // 子组件已经上传图片并返回 file_id，直接使用
+    await changeLibraryImage(data.libraryId, data.fileId)
+    ElMessage.success('封面修改成功')
+    // 刷新媒体库列表
+    await fetchLibraryList()
+  } catch (error) {
+    console.error('修改失败:', error)
+    ElMessage.error(error.message || '封面修改失败')
+  }
 }
 
 // 删除
