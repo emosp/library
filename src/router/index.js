@@ -19,7 +19,7 @@ const router = createRouter({
     {
       path: '/videos',
       name: 'videos',
-      component: () => import('@/views/VideosView.vue'),
+      component: () => import('@/views/videos/VideosView.vue'),
       meta: {
         requiresAuth: true
       }

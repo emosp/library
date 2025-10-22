@@ -34,15 +34,27 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
+import { baseURL } from '@/config'
 
-const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
 
+// UUID 固定值
+const UUID = '5fa042dc-cfa2-469d-b972-461c9643e08a'
+const APP_NAME = 'Emos 视频资源管理服务'
+
 // 检查是否从第三方授权回调返回
 onMounted(() => {
-  const { token, username } = route.query
+  // 优先从 route.query 获取参数(hash 路由模式)
+  let { token, username } = route.query
+
+  // 如果 route.query 中没有,尝试从 window.location.search 获取(参数在 hash 前)
+  if (!token || !username) {
+    const urlParams = new URLSearchParams(window.location.search)
+    token = urlParams.get('token')
+    username = urlParams.get('username')
+  }
 
   if (token && username) {
     // 存储用户信息到 sessionStorage
@@ -52,36 +64,23 @@ onMounted(() => {
 
     ElMessage.success('登录成功')
 
-    // 清理 URL 参数
-    router.replace('/videos')
+    // 清理 URL 参数并跳转到视频列表页
+    // 使用 window.location.hash 跳转以清除 search 参数
+    window.location.href = window.location.origin + window.location.pathname + '#/videos'
   }
 })
 
 const handleThirdPartyLogin = () => {
   loading.value = true
 
-  // 模拟跳转到第三方授权页面
-  // 实际项目中这里应该跳转到真实的第三方授权 URL
-  setTimeout(() => {
-    loading.value = false
+  // 获取当前地址栏 URL
+  const currentUrl = window.location.href
 
-    // 模拟第三方授权回调
-    // 在实际项目中，这一步由第三方授权服务器完成
-    const mockToken = 'mock_token_' + Date.now()
-    const mockUsername = 'test_user'
+  // 构建三方认证链接
+  const authUrl = `${baseURL}api/link?uuid=${UUID}&name=${encodeURIComponent(APP_NAME)}&url=${encodeURIComponent(currentUrl)}`
 
-    // 模拟重定向回来并携带 token 和 username
-    router.push({
-      path: '/login',
-      query: {
-        token: mockToken,
-        username: mockUsername,
-      },
-    })
-
-    // 实际项目中的跳转逻辑应该是：
-    // window.location.href = 'https://third-party-auth.com/oauth/authorize?client_id=xxx&redirect_uri=xxx&response_type=code'
-  }, 1000)
+  // 跳转到三方认证页面
+  window.location.href = authUrl
 }
 </script>
 

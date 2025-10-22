@@ -1,3 +1,13 @@
+/*
+ * @Author: flkGit
+ * @Date: 2025-10-22 10:15:13
+ * @LastEditors: flkGit
+ * @LastEditTime: 2025-10-22 11:58:57
+ * @FilePath: /emos_library/vite.config.js
+ * @Description:
+ *
+ * Copyright (c) 2025 by flkGit, All Rights Reserved.
+ */
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
@@ -21,8 +31,11 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  server: {
+    port: 4396,
   },
   build: {
     rollupOptions: {
