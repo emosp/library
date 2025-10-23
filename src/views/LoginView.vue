@@ -178,4 +178,120 @@ const handleThirdPartyLogin = () => {
 :deep(.el-card__body) {
   padding: 30px;
 }
+
+/* 移动端适配 (小于 768px) */
+@media screen and (max-width: 768px) {
+  .login-container {
+    padding: 20px;
+    height: auto;
+    min-height: 100vh;
+    align-items: flex-start;
+    padding-top: 10vh;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 8px;
+  }
+
+  .card-header {
+    gap: 8px;
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .title {
+    font-size: 20px;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .login-content {
+    padding: 15px 0;
+  }
+
+  .avatar-container {
+    margin-bottom: 25px;
+  }
+
+  .avatar {
+    width: 70px;
+    height: 70px;
+    border-width: 3px;
+  }
+
+  .welcome-text {
+    margin-bottom: 25px;
+    padding: 0 10px;
+  }
+
+  .welcome-text h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .welcome-text p {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .login-btn {
+    width: 100%;
+    max-width: 280px;
+    height: 42px;
+    font-size: 15px;
+  }
+
+  :deep(.el-card__header) {
+    padding: 20px 15px;
+  }
+
+  :deep(.el-card__body) {
+    padding: 20px 15px;
+  }
+}
+
+/* 超小屏幕 (小于 480px) */
+@media screen and (max-width: 480px) {
+  .login-container {
+    padding: 15px;
+    padding-top: 8vh;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+
+  .avatar {
+    width: 60px;
+    height: 60px;
+    border-width: 2px;
+  }
+
+  .welcome-text h3 {
+    font-size: 15px;
+  }
+
+  .welcome-text p {
+    font-size: 12px;
+  }
+
+  .login-btn {
+    height: 40px;
+    font-size: 14px;
+  }
+
+  :deep(.el-card__header) {
+    padding: 15px 12px;
+  }
+
+  :deep(.el-card__body) {
+    padding: 15px 12px;
+  }
+}
 </style>

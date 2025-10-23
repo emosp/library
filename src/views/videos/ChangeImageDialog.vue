@@ -1,6 +1,11 @@
 <template>
-  <el-dialog v-model="visible" title="修改媒体库封面" width="500px" @close="handleClose">
-    <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+  <el-dialog
+    v-model="visible"
+    title="修改媒体库封面"
+    class="change-image-dialog-mobile"
+    @close="handleClose"
+  >
+    <el-form :model="formData" :rules="formRules" ref="formRef" label-position="top">
       <el-form-item label="选择媒体库" prop="libraryId">
         <el-select
           v-model="formData.libraryId"
@@ -133,7 +138,6 @@ watch(visible, (val) => {
 const handleLibraryChange = (libraryId) => {
   // 查找选中的媒体库
   const library = props.libraryList.find((item) => item.id === libraryId)
-  console.log(library)
 
   if (library) {
     // 设置当前封面URL（假设媒体库对象有 image_url 字段）
@@ -196,12 +200,19 @@ const getToken = (file) => {
     file_name: file.name,
     // 文件大小 字节
     file_size: file.size,
+    // 添加时间戳避免重复请求拦截
+    timestamp: Date.now(),
   }
-  getUploadToken(params).then((res) => {
-    uploadToken.type = res.type
-    uploadToken.file_id = res.file_id
-    uploadToken.upload_url = res.data.upload_url
-  })
+  getUploadToken(params)
+    .then((res) => {
+      uploadToken.type = res.type
+      uploadToken.file_id = res.file_id
+      uploadToken.upload_url = res.data.upload_url
+    })
+    .catch((error) => {
+      // 响应拦截器已统一处理错误提示
+      console.error('获取上传token失败:', error)
+    })
 }
 
 // 文件超出限制
@@ -243,7 +254,7 @@ const handleSubmit = async () => {
 
     // 检查是否已获取上传 token
     if (!uploadToken.upload_url || !uploadToken.file_id) {
-      ElMessage.error('请先选择图片文件')
+      ElMessage.error('正在获取上传token，请稍后再试')
       return
     }
 

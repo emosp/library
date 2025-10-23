@@ -1,10 +1,10 @@
 <template>
-  <div class="videos-container">
+  <div class="videos-container" v-loading="pageLoading" element-loading-text="加载中...">
     <el-card class="header-card">
       <template #header>
         <div class="card-header">
           <img src="@/assets/icon.svg" alt="视频管理图标" class="header-icon" />
-          <span class="title">视频资源管理</span>
+          <span class="title">视频资源管理服务</span>
           <el-button type="primary" @click="handleChangeLibraryImage">
             <el-icon><Picture /></el-icon>
             修改媒体库封面
@@ -29,6 +29,7 @@
             v-model="queryForm.library"
             placeholder="请选择媒体库"
             clearable
+            filterable
             style="width: 200px"
           >
             <el-option
@@ -40,31 +41,22 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="类型">
-          <el-select
-            v-model="queryForm.type"
-            placeholder="请选择类型"
-            clearable
-            style="width: 150px"
-          >
-            <el-option
-              v-for="item in VIDEO_TYPE_OPTIONS"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
+        <el-form-item>
+          <el-radio-group v-model="queryForm.type">
+            <el-radio v-for="item in VIDEO_TYPE_OPTIONS" :key="item.value" :value="item.value">{{
+              item.label
+            }}</el-radio>
+          </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="是否包含已删除视频" label-width="160">
-          <el-select v-model="queryForm.withDelete" placeholder="请选择" style="width: 150px">
-            <el-option
-              v-for="item in WITH_DELETE_OPTIONS"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
+        <el-form-item>
+          <el-switch
+            v-model="queryForm.withDelete"
+            active-text="包含已删除视频"
+            inactive-text="不包含已删除视频"
+            :active-value="1"
+            :inactive-value="0"
+          />
         </el-form-item>
 
         <el-form-item>
@@ -73,9 +65,10 @@
             :placeholder="searchPlaceholder"
             clearable
             style="width: 300px"
+            @keyup.enter="handleQuery"
           >
             <template #prepend>
-              <el-select v-model="queryForm.searchType" style="width: 120px">
+              <el-select v-model="queryForm.searchType" style="width: 110px">
                 <el-option
                   v-for="item in SEARCH_TYPE_OPTIONS"
                   :key="item.value"
@@ -101,9 +94,17 @@
     </el-card>
 
     <!-- 数据表格 -->
-    <el-card class="table-card">
-      <el-table :data="tableData" stripe border v-loading="loading" style="width: 100%">
-        <el-table-column prop="video_id" label="视频ID" width="90" align="center" />
+    <el-card>
+      <!-- PC端表格 -->
+      <el-table
+        :data="tableData"
+        stripe
+        border
+        v-loading="loading"
+        empty-text="暂无数据"
+        class="pc-table"
+      >
+        <el-table-column prop="item_id" label="视频ID" width="90" align="center" />
 
         <el-table-column prop="library_name" label="所属媒体库" width="120" align="center">
         </el-table-column>
@@ -114,6 +115,23 @@
           min-width="200"
           show-overflow-tooltip
         />
+        <el-table-column label="封面" prop="video_image_cover" width="120" align="center">
+          <template #default="{ row }">
+            <el-image
+              :src="row.video_image_cover"
+              fit="cover"
+              style="width: 80px; height: 120px"
+              :preview-src-list="[row.video_image_cover]"
+              :preview-teleported="true"
+            >
+              <template #error>
+                <div class="image-slot">
+                  <el-icon><Picture /></el-icon>
+                </div>
+              </template>
+            </el-image>
+          </template>
+        </el-table-column>
 
         <el-table-column prop="video_type" label="类型" width="100" align="center">
           <template #default="{ row }">
@@ -122,16 +140,22 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" prop="is_delete" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getDeleteStatusTagType(row.is_delete)">
-              {{ getDeleteStatusName(row.is_delete) }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column prop="video_date_air" label="上映时间" width="120" align="center" />
 
-        <el-table-column prop="tmdb_id" label="TMDB ID" width="100" align="center" />
+        <el-table-column label="TMDB ID" width="100" align="center">
+          <template #default="{ row }">
+            <el-link
+              v-if="row.tmdb_id"
+              :href="row.tmdb_url"
+              target="_blank"
+              type="primary"
+              :underline="false"
+            >
+              {{ row.tmdb_id }}
+            </el-link>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
 
         <el-table-column
           prop="video_description"
@@ -141,8 +165,10 @@
             popperClass: 'description-tooltip',
           }"
         />
+        <el-table-column label="资源总数" prop="media_count" width="120"></el-table-column>
+        <el-table-column label="点播总数" prop="request_count" width="120"></el-table-column>
 
-        <el-table-column label="操作" width="280" fixed="right" align="center">
+        <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleChangeLibrary(row)">
               <el-icon><Folder /></el-icon>
@@ -165,6 +191,80 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端卡片列表 -->
+      <div class="mobile-list" v-loading="loading">
+        <el-empty v-if="!tableData.length" description="暂无数据" />
+        <div v-else class="video-card" v-for="row in tableData" :key="row.item_id">
+          <div class="video-card-content">
+            <!-- 封面 -->
+            <div class="video-cover">
+              <el-image
+                :src="row.video_image_cover"
+                fit="cover"
+                :preview-src-list="[row.video_image_cover]"
+                :preview-teleported="true"
+              >
+                <template #error>
+                  <div class="image-slot">
+                    <el-icon><Picture /></el-icon>
+                  </div>
+                </template>
+              </el-image>
+            </div>
+
+            <!-- 信息 -->
+            <div class="video-info">
+              <div class="video-title">{{ row.video_title }}</div>
+              <div class="video-meta">
+                <el-tag :type="getTypeTagType(row.video_type)" size="small">
+                  {{ getTypeName(row.video_type) }}
+                </el-tag>
+                <span class="meta-item">ID: {{ row.item_id }}</span>
+              </div>
+              <div class="video-detail">
+                <span class="detail-item">媒体库: {{ row.library_name }}</span>
+                <span class="detail-item">上映: {{ row.video_date_air }}</span>
+              </div>
+              <div class="video-detail">
+                <span class="detail-item">资源: {{ row.media_count }}</span>
+                <span class="detail-item">点播: {{ row.request_count }}</span>
+                <span class="detail-item" v-if="row.tmdb_id"
+                  >TMDB ID:
+                  <el-link
+                    :href="row.tmdb_url"
+                    target="_blank"
+                    type="primary"
+                    :underline="false"
+                    class="tmdb-link"
+                  >
+                    {{ row.tmdb_id }}
+                  </el-link></span
+                >
+              </div>
+              <div class="video-description" v-if="row.video_description">
+                {{ row.video_description }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="video-actions">
+            <el-button type="primary" size="small" @click="handleChangeLibrary(row)">
+              <el-icon><Folder /></el-icon>
+              修改媒体库
+            </el-button>
+            <el-button v-if="!row.is_delete" type="danger" size="small" @click="handleDelete(row)">
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+            <el-button v-else type="success" size="small" @click="handleRecover(row)">
+              <el-icon><RefreshLeft /></el-icon>
+              恢复
+            </el-button>
+          </div>
+        </div>
+      </div>
 
       <!-- 分页 -->
       <div class="pagination">
@@ -208,10 +308,7 @@ import {
   VIDEO_TYPE_LABEL,
   VIDEO_TYPE_TAG,
   WITH_DELETE,
-  WITH_DELETE_OPTIONS,
   SEARCH_TYPE_PLACEHOLDER,
-  DELETE_STATUS_LABEL,
-  DELETE_STATUS_TAG,
 } from '@/constants'
 import {
   getVideoList,
@@ -227,7 +324,8 @@ const ChangeLibraryDialog = defineAsyncComponent(() => import('./ChangeLibraryDi
 const ChangeImageDialog = defineAsyncComponent(() => import('./ChangeImageDialog.vue'))
 
 const router = useRouter()
-const loading = ref(false)
+const loading = ref(false) // 表格 loading
+const pageLoading = ref(false) // 页面级 loading (用于 fetchLibraryList)
 const loadingCount = ref(0) // 请求计数器
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -277,16 +375,6 @@ const getTypeTagType = (type) => {
   return VIDEO_TYPE_TAG[type] || 'info'
 }
 
-// 获取删除状态名称
-const getDeleteStatusName = (isDelete) => {
-  return DELETE_STATUS_LABEL[isDelete] || '未知'
-}
-
-// 获取删除状态标签类型
-const getDeleteStatusTagType = (isDelete) => {
-  return DELETE_STATUS_TAG[isDelete] || 'info'
-}
-
 // 查询数据
 const handleQuery = async () => {
   loadingCount.value++
@@ -332,15 +420,10 @@ const handleQuery = async () => {
     if (response.items) {
       tableData.value = response.items || []
       total.value = response.total || 0
-      ElMessage.success('查询成功')
     }
   } catch (error) {
-    // 如果是取消请求的错误,不处理
-    if (error && error.message && error.message.includes('重复请求')) {
-      return
-    }
+    // 响应拦截器已统一处理错误提示
     console.error('查询失败:', error)
-    ElMessage.error(error.message || '查询失败')
   } finally {
     loadingCount.value--
     // 只有当所有请求都完成时才关闭 loading
@@ -358,6 +441,8 @@ const handleReset = () => {
   queryForm.searchType = SEARCH_TYPE.NAME
   queryForm.searchValue = ''
   queryForm.withDelete = WITH_DELETE.NO
+  currentPage.value = 1
+  pageSize.value = 10
   handleQuery()
 }
 
@@ -383,27 +468,29 @@ const handleChangeLibrarySubmit = async (data) => {
     handleQuery()
   } catch (error) {
     console.error('修改失败:', error)
-    ElMessage.error(error.message || '修改失败')
   }
 }
 
 // 修改媒体库封面
 const handleChangeLibraryImage = () => {
   // 打开对话框
+  console.log(changeImageDialogVisible.value)
+
   changeImageDialogVisible.value = true
 }
 
 // 提交修改媒体库封面
 const handleChangeImageSubmit = async (data) => {
   try {
+    // 获取媒体库名称
+    const library = libraryList.value.find((lib) => lib.id === data.libraryId)
+    const libraryName = library?.name || '未知媒体库'
+
     // 子组件已经上传图片并返回 file_id，直接使用
     await changeLibraryImage(data.libraryId, data.fileId)
-    ElMessage.success('封面修改成功')
-    // 刷新媒体库列表
-    await fetchLibraryList()
+    ElMessage.success(`"${libraryName}" 封面修改成功，封面修改需要需要一段时间才能生效，请耐心等待`)
   } catch (error) {
     console.error('修改失败:', error)
-    ElMessage.error(error.message || '封面修改失败')
   }
 }
 
@@ -421,7 +508,6 @@ const handleDelete = async (row) => {
         handleQuery()
       } catch (error) {
         console.error('删除失败:', error)
-        ElMessage.error(error.message || '删除失败')
       }
     })
     .catch(() => {
@@ -443,7 +529,6 @@ const handleRecover = async (row) => {
         handleQuery()
       } catch (error) {
         console.error('恢复失败:', error)
-        ElMessage.error(error.message || '恢复失败')
       }
     })
     .catch(() => {
@@ -454,6 +539,7 @@ const handleRecover = async (row) => {
 // 分页
 const handleSizeChange = (val) => {
   pageSize.value = val
+  currentPage.value = 1 // 改变每页大小时重置到第一页
   handleQuery()
 }
 
@@ -482,26 +568,16 @@ const handleLogout = () => {
 
 // 获取媒体库列表
 const fetchLibraryList = async () => {
-  loadingCount.value++
-  loading.value = true
+  pageLoading.value = true
 
   try {
     const response = await getLibraryList()
     libraryList.value = response || []
   } catch (error) {
-    // 如果是取消请求的错误,不处理
-    if (error && error.message && error.message.includes('重复请求')) {
-      return
-    }
+    // 响应拦截器已统一处理错误提示
     console.error('获取媒体库列表失败:', error)
-    ElMessage.error('获取媒体库列表失败')
   } finally {
-    loadingCount.value--
-    // 只有当所有请求都完成时才关闭 loading
-    if (loadingCount.value <= 0) {
-      loadingCount.value = 0
-      loading.value = false
-    }
+    pageLoading.value = false
   }
 }
 
@@ -574,6 +650,15 @@ onMounted(async () => {
   background-color: #ffffff;
 }
 
+/* 默认显示表格，隐藏移动端列表 */
+.pc-table {
+  display: block;
+}
+
+.mobile-list {
+  display: none;
+}
+
 .pagination {
   margin-top: 20px;
   display: flex;
@@ -599,6 +684,312 @@ onMounted(async () => {
 
 :deep(.el-form-item) {
   margin-bottom: 20px;
+}
+
+/* 按钮中的图标与文字间距 */
+:deep(.el-button .el-icon) {
+  margin-right: 5px;
+}
+
+/* 封面图片加载失败样式 */
+.image-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background-color: #f5f7fa;
+  color: #909399;
+  font-size: 20px;
+}
+
+/* 手机端适配 (小于 768px) */
+@media screen and (max-width: 768px) {
+  /* 隐藏表格，显示卡片列表 */
+  .pc-table {
+    display: none !important;
+  }
+
+  .mobile-list {
+    display: block;
+  }
+
+  /* 视频卡片样式 */
+  .video-card {
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .video-card-content {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .video-cover {
+    flex-shrink: 0;
+    width: 80px;
+    height: 120px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f5f7fa;
+  }
+
+  .video-cover :deep(.el-image) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .video-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .video-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #303133;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-all;
+  }
+
+  .video-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    font-size: 11px;
+    color: #909399;
+  }
+
+  .video-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    color: #606266;
+  }
+
+  .detail-item {
+    white-space: nowrap;
+  }
+
+  .tmdb-link {
+    font-size: inherit;
+    vertical-align: baseline;
+  }
+
+  .video-description {
+    font-size: 11px;
+    color: #909399;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-all;
+  }
+
+  .video-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .video-actions :deep(.el-button) {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* 容器间距调整 */
+  .videos-container {
+    padding: 8px;
+  }
+
+  /* 头部卡片 */
+  .header-card {
+    margin-bottom: 10px;
+  }
+
+  :deep(.el-card__header) {
+    padding: 10px;
+  }
+
+  :deep(.el-card__body) {
+    padding: 10px;
+  }
+
+  /* 头部布局 - 响应式换行 */
+  .card-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .header-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .title {
+    font-size: 15px;
+    flex: 1 1 auto;
+  }
+
+  /* 隐藏用户名，只保留头像 */
+  .user-info {
+    margin-left: auto;
+    margin-right: 8px;
+  }
+
+  .username {
+    display: none;
+  }
+
+  .user-avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* 按钮尺寸调整 */
+  :deep(.el-button) {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  /* 表单布局 - 垂直排列 */
+  :deep(.el-form--inline) {
+    display: block;
+  }
+
+  :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+
+  :deep(.el-form-item__label) {
+    display: block;
+    text-align: left;
+    padding-bottom: 5px;
+    width: 100% !important;
+  }
+
+  :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+
+  /* 表单控件宽度 */
+  :deep(.el-select),
+  :deep(.el-input),
+  :deep(.el-radio-group) {
+    width: 100% !important;
+  }
+
+  /* Switch 调整 */
+  :deep(.el-switch__label) {
+    font-size: 12px;
+  }
+
+  /* 表格优化 */
+  :deep(.el-table) {
+    font-size: 11px;
+  }
+
+  :deep(.el-table th),
+  :deep(.el-table td) {
+    padding: 6px 3px;
+  }
+
+  :deep(.el-table th .cell),
+  :deep(.el-table td .cell) {
+    padding: 0 3px;
+    line-height: 1.3;
+  }
+
+  /* 表格内按钮 */
+  :deep(.el-table .el-button--small) {
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+
+  :deep(.el-table .el-button .el-icon) {
+    margin-right: 2px;
+  }
+
+  /* 分页器 */
+  .pagination {
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  :deep(.el-pagination) {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+  }
+
+  :deep(.el-pagination .btn-prev),
+  :deep(.el-pagination .btn-next),
+  :deep(.el-pagination .el-pager li) {
+    min-width: 26px;
+    height: 26px;
+    line-height: 26px;
+    font-size: 12px;
+  }
+
+  /* 隐藏分页器的部分元素 */
+  :deep(.el-pagination__total),
+  :deep(.el-pagination__jump) {
+    display: none;
+  }
+
+  :deep(.el-pagination__sizes) {
+    margin: 0 5px;
+  }
+}
+
+/* 超小屏幕 (小于 480px) */
+@media screen and (max-width: 480px) {
+  .title {
+    font-size: 14px;
+  }
+
+  :deep(.el-button) {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  /* 修改媒体库封面按钮换行 */
+  .card-header > .el-button:first-of-type {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  /* 表格字体更小 */
+  :deep(.el-table) {
+    font-size: 10px;
+  }
+
+  :deep(.el-table .el-button--small) {
+    font-size: 10px;
+  }
 }
 </style>
 

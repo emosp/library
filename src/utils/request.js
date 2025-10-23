@@ -7,8 +7,8 @@ const request = axios.create({
   baseURL: baseURL,
   timeout: timeout,
   headers: {
-    'Content-Type': 'application/json;charset=UTF-8'
-  }
+    'Content-Type': 'application/json;charset=UTF-8',
+  },
 })
 
 // 存储正在进行的请求
@@ -72,7 +72,7 @@ request.interceptors.request.use(
   (error) => {
     console.error('请求错误:', error)
     return Promise.reject(error)
-  }
+  },
 )
 
 // 响应拦截器
@@ -81,23 +81,8 @@ request.interceptors.response.use(
     // 请求完成,从 pending 中移除
     removePendingRequest(response.config)
 
-    const res = response.data
-
-    // 根据业务需求处理响应
-    // 假设后端返回格式为 { code: number, data: any, message: string }
-    if (res.code !== undefined && res.code !== 200) {
-      ElMessage.error(res.message || '请求失败')
-
-      // 401 未授权，跳转到登录页
-      if (res.code === 401) {
-        sessionStorage.clear()
-        window.location.href = '/#/login'
-      }
-
-      return Promise.reject(new Error(res.message || '请求失败'))
-    }
-
-    return res
+    // 直接返回 response.data，因为后端返回的数据中没有 code 包装
+    return response.data
   },
   (error) => {
     // 请求失败,从 pending 中移除
@@ -107,7 +92,7 @@ request.interceptors.response.use(
 
     // 如果是取消请求的错误,不显示错误提示
     if (axios.isCancel(error)) {
-      console.log('请求已取消:', error.message)
+      // 静默处理取消的请求，不输出到控制台
       return Promise.reject(error)
     }
 
@@ -144,7 +129,7 @@ request.interceptors.response.use(
     }
 
     return Promise.reject(error)
-  }
+  },
 )
 
 export default request

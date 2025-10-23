@@ -2,10 +2,10 @@
   <el-dialog
     v-model="visible"
     title="修改媒体库"
-    width="500px"
+    class="change-library-dialog-mobile"
     @close="handleClose"
   >
-    <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+    <el-form :model="formData" :rules="formRules" ref="formRef" label-position="top">
       <el-form-item label="视频名称">
         <el-input v-model="formData.videoTitle" disabled />
       </el-form-item>
@@ -15,11 +15,7 @@
       </el-form-item>
 
       <el-form-item label="新媒体库" prop="libraryId">
-        <el-select
-          v-model="formData.libraryId"
-          placeholder="请选择媒体库"
-          style="width: 100%"
-        >
+        <el-select v-model="formData.libraryId" placeholder="请选择媒体库" style="width: 100%">
           <el-option
             v-for="item in libraryList"
             :key="item.id"
@@ -43,7 +39,7 @@ import { ref, watch } from 'vue'
 const props = defineProps({
   modelValue: {
     type: Boolean,
-    default: false
+    default: false,
   },
   videoInfo: {
     type: Object,
@@ -51,13 +47,13 @@ const props = defineProps({
       videoId: '',
       videoTitle: '',
       currentLibraryId: '',
-      currentLibraryName: ''
-    })
+      currentLibraryName: '',
+    }),
   },
   libraryList: {
     type: Array,
-    default: () => []
-  }
+    default: () => [],
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'submit'])
@@ -68,7 +64,7 @@ const submitting = ref(false)
 const formData = ref({
   videoTitle: '',
   currentLibraryName: '',
-  libraryId: ''
+  libraryId: '',
 })
 
 // 表单验证规则
@@ -83,23 +79,26 @@ const formRules = {
           callback()
         }
       },
-      trigger: 'change'
-    }
-  ]
+      trigger: 'change',
+    },
+  ],
 }
 
 // 监听 modelValue 变化
-watch(() => props.modelValue, (val) => {
-  visible.value = val
-  if (val) {
-    // 打开对话框时初始化表单数据
-    formData.value = {
-      videoTitle: props.videoInfo.videoTitle,
-      currentLibraryName: props.videoInfo.currentLibraryName,
-      libraryId: '' // 默认为空,不选择任何媒体库
+watch(
+  () => props.modelValue,
+  (val) => {
+    visible.value = val
+    if (val) {
+      // 打开对话框时初始化表单数据
+      formData.value = {
+        videoTitle: props.videoInfo.videoTitle,
+        currentLibraryName: props.videoInfo.currentLibraryName,
+        libraryId: '', // 默认为空,不选择任何媒体库
+      }
     }
-  }
-})
+  },
+)
 
 // 监听 visible 变化
 watch(visible, (val) => {
@@ -123,7 +122,7 @@ const handleSubmit = async () => {
     if (valid) {
       emit('submit', {
         videoId: props.videoInfo.videoId,
-        libraryId: formData.value.libraryId
+        libraryId: formData.value.libraryId,
       })
       visible.value = false
     }
